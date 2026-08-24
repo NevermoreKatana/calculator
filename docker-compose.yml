@@ -1,0 +1,76 @@
+# Local containerised deployment of Ganache Calculator.
+#
+#   docker compose up -d --build
+#   → http://localhost:3000
+#
+# Host ports are deliberately offset where they would clash with a local
+# install: Postgres is published on 5433, because a native postgres@15 already
+# owns 5432 on this machine.
+
+name: ganache-calculator
+
+services:
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ganache
+      POSTGRES_PASSWORD: ganache
+      POSTGRES_DB: ganache_calculator
+      # Deterministic collation, so ORDER BY on ingredient names is stable
+      # regardless of the host locale.
+      POSTGRES_INITDB_ARGS: '--locale=C --encoding=UTF8'
+    ports:
+      - '5433:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ganache -d ganache_calculator']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  # ── Schema + data import ──────────────────────────────────────────────────
+  # Runs once, then exits. Built from the `builder` stage because it needs the
+  # Prisma CLI, tsx and the source workbook — none of which belong in the lean
+  # runtime image.
+  migrate:
+    build:
+      context: .
+      target: builder
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://ganache:ganache@db:5432/ganache_calculator?schema=public
+      DIRECT_DATABASE_URL: postgresql://ganache:ganache@db:5432/ganache_calculator?schema=public
+    # `db push` is idempotent; the importer upserts, so re-running is safe.
+    command: >
+      sh -c "npx prisma db push --skip-generate &&
+             npm run import:excel"
+    restart: 'no'
+
+  # ── Application ───────────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      target: runner
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://ganache:ganache@db:5432/ganache_calculator?schema=public
+      DIRECT_DATABASE_URL: postgresql://ganache:ganache@db:5432/ganache_calculator?schema=public
+      # Optional external ingredient lookup.
+      OPEN_FOOD_FACTS_BASE_URL: https://world.openfoodfacts.org
+      EXTERNAL_LOOKUP_TIMEOUT_MS: '6000'
+    ports:
+      - '3000:3000'
+    restart: unless-stopped
+
+volumes:
+  db-data:

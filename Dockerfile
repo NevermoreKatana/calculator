@@ -38,8 +38,11 @@ COPY . .
 RUN npx prisma generate
 # A dummy URL satisfies Prisma's client construction during the build. Every
 # page is force-dynamic, so no route actually queries the database here.
+# NEXT_OUTPUT_STANDALONE asks next.config.ts for `output: 'standalone'`. Only
+# the container needs it; hosted platforms package the app themselves.
 ENV DATABASE_URL="postgresql://build:build@localhost:5432/build?schema=public" \
-    DIRECT_DATABASE_URL="postgresql://build:build@localhost:5432/build?schema=public"
+    DIRECT_DATABASE_URL="postgresql://build:build@localhost:5432/build?schema=public" \
+    NEXT_OUTPUT_STANDALONE=1
 RUN npm run build
 
 

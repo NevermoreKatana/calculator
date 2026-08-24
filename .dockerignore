@@ -1,0 +1,30 @@
+# Build artefacts and local state — never copy into the image.
+node_modules
+.next
+out
+build
+
+# VCS and tooling
+.git
+.gitignore
+.claude
+.vscode
+.idea
+
+# Secrets: the container gets its configuration from compose, not from a file
+# baked into the image. .env.example is kept as documentation.
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs and OS noise
+*.log
+npm-debug.log*
+.DS_Store
+
+# Test output
+coverage
+
+# NOTE: docs/ is deliberately NOT ignored — docs/source/*.xlsx is the input for
+# `npm run import:excel`, which runs in the migrate stage.

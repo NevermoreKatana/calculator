@@ -1,0 +1,122 @@
+// Ganache Calculator — data model.
+//
+// Percentage columns mirror the seven composition components of the source
+// workbook's `Database` sheet and are stored as 0..100 percent of ingredient
+// mass. See docs/calculation-model.md for the Excel column mapping.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+enum IngredientCategory {
+  chocolate
+  cocoa
+  dairy
+  fruit
+  sugar
+  nut
+  alcohol
+  fat
+  other
+}
+
+model Ingredient {
+  id       String             @id @default(cuid())
+  name     String
+  category IngredientCategory @default(other)
+  brand    String?
+
+  sugarPercentage       Float @default(0)
+  fatPercentage         Float @default(0)
+  cocoaButterPercentage Float @default(0)
+  milkSolidsPercentage  Float @default(0)
+  cocoaSolidsPercentage Float @default(0)
+  otherSolidsPercentage Float @default(0)
+  waterPercentage       Float @default(0)
+
+  sweetness  Float  @default(0)
+  pricePerKg Float?
+
+  source    String?
+  sourceUrl String?
+  /// True for rows the user created, false for rows imported from the workbook.
+  isCustom  Boolean @default(false)
+
+  /// Row number in the source Excel `Database` sheet, for traceability.
+  sourceRow Int?
+
+  /// Sum of the seven components at import time. Retained so the UI can show
+  /// data completeness without recomputing it, and so importer drift is visible.
+  componentSum Float @default(0)
+
+  items RecipeItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, brand], name: "ingredient_identity")
+  @@index([category])
+  @@index([name])
+}
+
+model Recipe {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+
+  /// Explicit batch target in grams, when the user set one.
+  targetTotalWeightGrams Float?
+  /// Piece-based sizing (spec §37).
+  pieceCount             Int?
+  pieceWeightGrams       Float?
+
+  /// Instrument reading, 0..1. Null means "not measured" — never a computed guess.
+  measuredWaterActivity Float?
+  useMeasuredAw         Boolean @default(false)
+  storageTemperatureC   Float?
+  productType           String?
+
+  notes String?
+
+  items RecipeItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
+model RecipeItem {
+  id       String @id @default(cuid())
+  recipeId String
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  weightGrams Float
+  position    Int   @default(0)
+
+  @@index([recipeId])
+  @@index([ingredientId])
+}
+
+model AppSettings {
+  /// Single-row table; always keyed "default".
+  id String @id @default("default")
+
+  currency            String  @default("RUB")
+  defaultPieceWeightG Float   @default(12)
+  /// Which a_w model chain the app offers. "measured" is the only one that
+  /// can currently return a value — see src/lib/water-activity/models.ts.
+  awModelId           String  @default("measured")
+  enableExternalLookup Boolean @default(true)
+
+  updatedAt DateTime @updatedAt @default(now())
+}

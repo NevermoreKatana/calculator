@@ -1,0 +1,241 @@
+@import 'tailwindcss';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Ganache Calculator — design tokens.
+   Palette: cream, chocolate, caramel, bordeaux, milk, warm beige (spec §32).
+   The intent is a chocolatier's laboratory: warm paper, dark cocoa ink,
+   restrained metallic accents — precise instrument, not a generic SaaS.
+   ───────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* Raw palette */
+  --color-cream-50: #fdfaf5;
+  --color-cream-100: #faf4ea;
+  --color-cream-200: #f3e9d8;
+  --color-cream-300: #e9dbc4;
+
+  --color-beige-300: #dcc9ab;
+  --color-beige-400: #c9b193;
+  --color-beige-500: #b09779;
+
+  --color-caramel-300: #e0a86a;
+  --color-caramel-400: #cf8f4c;
+  --color-caramel-500: #b8763a;
+  --color-caramel-600: #9a5f2c;
+
+  --color-cocoa-400: #8a6551;
+  --color-cocoa-500: #6b4633;
+  --color-cocoa-600: #52341f;
+  --color-cocoa-700: #3e2617;
+  --color-cocoa-800: #2c1a10;
+  --color-cocoa-900: #1d110a;
+
+  --color-bordeaux-400: #a03a4e;
+  --color-bordeaux-500: #7f2537;
+  --color-bordeaux-600: #641b2a;
+
+  --color-pistachio-400: #7d9a5c;
+  --color-pistachio-500: #61793f;
+
+  --font-display: 'Cormorant Garamond', 'Iowan Old Style', Georgia, serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+/* Semantic tokens — light */
+:root {
+  --surface-page: var(--color-cream-100);
+  --surface-card: #fffdf9;
+  --surface-raised: var(--color-cream-50);
+  --surface-sunken: var(--color-cream-200);
+  --surface-inverse: var(--color-cocoa-800);
+
+  --text-primary: var(--color-cocoa-800);
+  --text-secondary: var(--color-cocoa-500);
+  --text-muted: var(--color-cocoa-400);
+  --text-inverse: var(--color-cream-100);
+
+  --border-subtle: #e7dac2;
+  --border-strong: var(--color-beige-400);
+
+  --accent: var(--color-caramel-500);
+  --accent-hover: var(--color-caramel-600);
+  --accent-soft: #f6e7d3;
+
+  --danger: var(--color-bordeaux-500);
+  --danger-soft: #f7e4e7;
+  --warning: var(--color-caramel-600);
+  --warning-soft: #fbeeda;
+  --success: var(--color-pistachio-500);
+  --success-soft: #eaf1e0;
+
+  --shadow-card: 0 1px 2px rgb(62 38 23 / 0.05), 0 8px 24px -12px rgb(62 38 23 / 0.18);
+  --shadow-raised: 0 2px 4px rgb(62 38 23 / 0.06), 0 18px 40px -20px rgb(62 38 23 / 0.28);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --surface-page: #161009;
+    --surface-card: #1f1710;
+    --surface-raised: #2a2016;
+    --surface-sunken: #120d07;
+    --surface-inverse: var(--color-cream-200);
+
+    --text-primary: #f2e6d4;
+    --text-secondary: #c9b193;
+    --text-muted: #9c8468;
+    --text-inverse: var(--color-cocoa-900);
+
+    --border-subtle: #3a2c1d;
+    --border-strong: #52341f;
+
+    --accent: var(--color-caramel-300);
+    --accent-hover: var(--color-caramel-400);
+    --accent-soft: #3a2a17;
+
+    --danger: #d4788a;
+    --danger-soft: #3a1c23;
+    --warning: var(--color-caramel-300);
+    --warning-soft: #3a2a14;
+    --success: #9dbd78;
+    --success-soft: #24301a;
+
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    --shadow-raised: 0 2px 4px rgb(0 0 0 / 0.45), 0 18px 40px -20px rgb(0 0 0 / 0.7);
+  }
+}
+
+:root[data-theme='dark'] {
+  --surface-page: #161009;
+  --surface-card: #1f1710;
+  --surface-raised: #2a2016;
+  --surface-sunken: #120d07;
+  --surface-inverse: var(--color-cream-200);
+
+  --text-primary: #f2e6d4;
+  --text-secondary: #c9b193;
+  --text-muted: #9c8468;
+  --text-inverse: var(--color-cocoa-900);
+
+  --border-subtle: #3a2c1d;
+  --border-strong: #52341f;
+
+  --accent: var(--color-caramel-300);
+  --accent-hover: var(--color-caramel-400);
+  --accent-soft: #3a2a17;
+
+  --danger: #d4788a;
+  --danger-soft: #3a1c23;
+  --warning: var(--color-caramel-300);
+  --warning-soft: #3a2a14;
+  --success: #9dbd78;
+  --success-soft: #24301a;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  --shadow-raised: 0 2px 4px rgb(0 0 0 / 0.45), 0 18px 40px -20px rgb(0 0 0 / 0.7);
+}
+
+@layer base {
+  * {
+    border-color: var(--border-subtle);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--surface-page);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-feature-settings: 'tnum' 0;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100dvh;
+  }
+
+  /* Warm paper grain — subtle, never noisy. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.5;
+    background-image:
+      radial-gradient(circle at 12% 8%, rgb(207 143 76 / 0.06), transparent 42%),
+      radial-gradient(circle at 88% 92%, rgb(127 37 55 / 0.05), transparent 46%);
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+
+  /* Numeric readouts must align in columns. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--text-primary);
+  }
+
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}
+
+@layer utilities {
+  .surface-card {
+    background-color: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
+  }
+  .surface-raised {
+    background-color: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+  }
+  .text-secondary { color: var(--text-secondary); }
+  .text-muted { color: var(--text-muted); }
+  .bg-accent-soft { background-color: var(--accent-soft); }
+  .text-accent { color: var(--accent); }
+  .border-strong { border-color: var(--border-strong); }
+
+  /* Wide tables/charts scroll inside themselves, never the page body. */
+  .scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Never let wide content widen the parent: the container scrolls, the
+       page body does not. */
+    min-width: 0;
+    max-width: 100%;
+    /* Establishes a containing block so absolutely positioned descendants
+       (e.g. Tailwind's .sr-only, which is position:absolute) are clipped here
+       instead of anchoring to a positioned ancestor outside the scroll area
+       and stretching the document. */
+    position: relative;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

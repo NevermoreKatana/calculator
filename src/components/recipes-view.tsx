@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useRecipe } from '@/lib/store/recipe-store';
+import { EMPTY_RECIPE, useRecipe } from '@/lib/store/recipe-store';
 import { deleteRecipe, duplicateRecipe } from '@/app/actions/recipes';
 import { formatGrams } from '@/lib/calculator/numeric';
 import { Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Notice } from '@/components/ui';
@@ -55,6 +55,9 @@ export function RecipesView({ recipes }: { recipes: SavedRecipe[] }) {
    */
   const openAt = (recipe: SavedRecipe, path: '/calculator' | '/composition' | '/shelf-life') => {
     loadRecipe({
+      // Spread the empty recipe first so newly added measurement fields default
+      // to "not measured" rather than being undefined for older saved rows.
+      ...EMPTY_RECIPE,
       id: recipe.id,
       name: recipe.name,
       description: recipe.description ?? '',

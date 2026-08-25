@@ -10,7 +10,9 @@ const LINKS = [
   { href: '/composition', label: 'Состав' },
   { href: '/ingredients', label: 'Ингредиенты' },
   { href: '/recipes', label: 'Рецепты' },
+  { href: '/stability', label: 'Стабильность' },
   { href: '/shelf-life', label: 'Срок годности' },
+  { href: '/science', label: 'Наука' },
   { href: '/settings', label: 'Настройки' },
 ] as const;
 

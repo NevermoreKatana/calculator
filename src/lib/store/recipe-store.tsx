@@ -3,7 +3,8 @@
 import * as React from 'react';
 import type { Ingredient, RecipeInput } from '@/lib/calculator/types';
 import { calculateRecipe } from '@/lib/calculator/calculateRecipe';
-import { calculateWaterActivity } from '@/lib/calculator/calculateWaterActivity';
+import { analyseRecipeScience } from '@/lib/calculator/calculateWaterActivity';
+import { analyseHurdles, type HurdleAnalysis, type AdaptedRecipe } from '@/lib/science';
 import { calculateShelfLife } from '@/lib/calculator/calculateShelfLife';
 import type { RecipeCalculation } from '@/lib/calculator/types';
 import type { ResolvedWaterActivity } from '@/lib/water-activity';
@@ -37,6 +38,24 @@ export interface WorkingRecipe {
   storageTemperatureC: number | null;
   productType: string;
   notes: string;
+
+  /* ── Laboratory measurements (spec §51) ──────────────────────────────────
+   * All optional. A measured value always outranks a computed one, and its
+   * absence lowers the confidence of whatever depends on it rather than being
+   * silently replaced by a default. */
+
+  /** pH meter reading. Cannot be derived from a recipe (spec §16). */
+  measuredPH: number | null;
+  /** Refractometer reading on the water phase. */
+  measuredBrix: number | null;
+  /** Oven-dry moisture, % (ГОСТ 5900-2014). */
+  measuredMoisturePercent: number | null;
+
+  /* ── Process and packaging hurdles (spec §17) ─────────────────────────── */
+  packagingSealed: boolean | null;
+  chocolateShell: boolean | null;
+  thermalTreatment: boolean | null;
+  hasPreservative: boolean;
 }
 
 export const EMPTY_RECIPE: WorkingRecipe = {
@@ -52,6 +71,13 @@ export const EMPTY_RECIPE: WorkingRecipe = {
   storageTemperatureC: null,
   productType: '',
   notes: '',
+  measuredPH: null,
+  measuredBrix: null,
+  measuredMoisturePercent: null,
+  packagingSealed: null,
+  chocolateShell: null,
+  thermalTreatment: null,
+  hasPreservative: false,
 };
 
 interface RecipeContextValue {
@@ -64,6 +90,10 @@ interface RecipeContextValue {
   calculation: RecipeCalculation;
   waterActivity: ResolvedWaterActivity;
   shelfLife: ShelfLifeEstimate;
+  /** Per-line sugar speciation and the aqueous-phase payload (spec §36). */
+  science: AdaptedRecipe;
+  /** Barrier-by-barrier stability picture (spec §17). */
+  hurdles: HurdleAnalysis;
 
   addIngredient: (ingredientId: string, weightGrams?: number) => void;
   updateItemWeight: (itemId: string, weightGrams: number) => void;
@@ -222,14 +252,55 @@ export function RecipeProvider({
 
   const calculation = React.useMemo(() => calculateRecipe(calculatorInput), [calculatorInput]);
 
-  const waterActivity = React.useMemo(
+  const { adapted: science, waterActivity } = React.useMemo(
     () =>
-      calculateWaterActivity(calculation, {
+      analyseRecipeScience(calculation, {
         measuredValue: recipe.useMeasuredAw ? recipe.measuredWaterActivity : null,
         temperatureCelsius: recipe.storageTemperatureC,
+        ingredientsById,
       }),
-    [calculation, recipe.useMeasuredAw, recipe.measuredWaterActivity, recipe.storageTemperatureC],
+    [
+      calculation,
+      ingredientsById,
+      recipe.useMeasuredAw,
+      recipe.measuredWaterActivity,
+      recipe.storageTemperatureC,
+    ],
   );
+
+  const hurdles = React.useMemo(() => {
+    const detail = waterActivity.result.detail;
+    const phase = detail?.aqueousPhase;
+    const ethanolPercent =
+      phase && phase.phaseMassGrams > 0
+        ? ((phase.solutes.find((s) => s.species === 'ethanol')?.grams ?? 0) /
+            phase.phaseMassGrams) *
+          100
+        : null;
+
+    return analyseHurdles({
+      waterActivity: waterActivity.result.value,
+      waterActivityMeasured: waterActivity.result.source === 'measured',
+      measuredPH: recipe.measuredPH,
+      storageTemperatureC: recipe.storageTemperatureC,
+      dissolvedSolidsPercent: phase?.dissolvedSolidsPercent ?? null,
+      ethanolPercentOfWaterPhase: ethanolPercent,
+      hasPreservative: recipe.hasPreservative,
+      packagingSealed: recipe.packagingSealed,
+      chocolateShell: recipe.chocolateShell,
+      thermalTreatment: recipe.thermalTreatment,
+      fatPercentage: calculation.percentages.totalFatPercentage,
+    });
+  }, [
+    waterActivity,
+    recipe.measuredPH,
+    recipe.storageTemperatureC,
+    recipe.hasPreservative,
+    recipe.packagingSealed,
+    recipe.chocolateShell,
+    recipe.thermalTreatment,
+    calculation.percentages.totalFatPercentage,
+  ]);
 
   const shelfLife = React.useMemo(
     () => calculateShelfLife(calculation, { waterActivity: waterActivity.result.value }),
@@ -245,6 +316,8 @@ export function RecipeProvider({
       calculation,
       waterActivity,
       shelfLife,
+      science,
+      hurdles,
 
       addIngredient: (ingredientId, weightGrams = 0) =>
         update((prev) => ({
@@ -285,7 +358,17 @@ export function RecipeProvider({
       loadRecipe: (next) => commit(next),
       reset: () => commit(EMPTY_RECIPE),
     }),
-    [ingredients, ingredientsById, recipe, hydrated, calculation, waterActivity, shelfLife],
+    [
+      ingredients,
+      ingredientsById,
+      recipe,
+      hydrated,
+      calculation,
+      waterActivity,
+      shelfLife,
+      science,
+      hurdles,
+    ],
   );
 
   return <RecipeContext.Provider value={value}>{children}</RecipeContext.Provider>;

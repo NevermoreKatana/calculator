@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { PageShell } from '@/components/layout/page-shell';
 import { NewRecipeButton } from '@/components/new-recipe-button';
 import { RecipesView } from '@/components/recipes-view';
+import { ExampleRecipesView } from '@/components/examples/example-recipes-view';
 import { prisma, isDatabaseConfigured } from '@/lib/db';
 import { Notice } from '@/components/ui';
 
@@ -40,8 +41,8 @@ export default async function RecipesPage() {
 
   return (
     <PageShell
-      title="Сохранённые рецепты"
-      subtitle="Откройте рецепт, чтобы продолжить работу с ним в калькуляторе."
+      title="Рецепты"
+      subtitle="Ваши сохранённые рецептуры и разобранные примеры, каждый из которых показывает одно конкретное явление."
       actions={<NewRecipeButton />}
     >
       {error ? (
@@ -70,6 +71,17 @@ export default async function RecipesPage() {
           }))}
         />
       )}
+
+      <section className="mt-10">
+        <h2 className="font-display mb-1 text-2xl font-semibold tracking-tight">
+          Примеры с разбором
+        </h2>
+        <p className="text-secondary mb-5 max-w-2xl text-sm">
+          Готовые рецептуры, каждая из которых демонстрирует одно явление. Подпись говорит, что
+          именно вы увидите; значения в подписях проверяются тестами против расчётного ядра.
+        </p>
+        <ExampleRecipesView />
+      </section>
     </PageShell>
   );
 }

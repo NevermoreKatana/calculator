@@ -1,4 +1,10 @@
 import type { IngredientContribution } from '../calculator/types';
+import {
+  calculateCompositionWaterActivity,
+  type AqueousPhaseContribution,
+  type SpeciationEntry,
+  type CompositionAwResult,
+} from '../science';
 
 /**
  * Pluggable water-activity models (spec §27, §28).
@@ -23,6 +29,15 @@ export interface WaterActivityInput {
   ingredients: IngredientContribution[];
   /** User-supplied instrument reading, 0..1. */
   measuredValue?: number | null;
+  /**
+   * Aqueous-phase payload produced by the science adapter. Present when the
+   * caller has resolved sugar speciation; absent when it has not, in which
+   * case the composition model correctly reports that it cannot run.
+   */
+  science?: {
+    contributions: readonly AqueousPhaseContribution[];
+    speciation: readonly SpeciationEntry[];
+  } | null;
 }
 
 export interface WaterActivityResult {
@@ -35,6 +50,12 @@ export interface WaterActivityResult {
   reason: string;
   /** For unavailable results: what would be required to produce a value. */
   missingData?: string[];
+  /**
+   * Full scientific detail when a computed model produced the value: the
+   * uncertainty band, the cross-check models, the aqueous phase and the
+   * provenance record (spec §36).
+   */
+  detail?: CompositionAwResult;
 }
 
 export interface WaterActivityModel {
@@ -151,38 +172,76 @@ export const ReferenceAwModel: WaterActivityModel = {
 };
 
 /**
- * Placeholder for a validated physico-chemical model (Norrish, Money–Born,
- * Grover, or a fitted product-specific correlation).
+ * Composition-based scientific model (spec §32 category 2).
  *
- * It deliberately computes nothing. The blockers below are concrete and
- * verifiable against the imported ingredient schema, not hedging: every
- * published confectionery a_w equation needs the MOLAR concentration of each
- * dissolved species, and the source Database carries a single aggregate
- * "сахара" column with no speciation. Until the ingredient model records which
- * sugars are present, the equations cannot be instantiated at all.
+ * ── What changed, and why it is now allowed to compute ────────────────────
+ * This slot used to hold `FutureScientificAwModel`, which deliberately
+ * returned nothing. Its stated blocker was accurate: every published
+ * confectionery a_w equation needs the MOLAR concentration of each dissolved
+ * species, and the imported Database has a single aggregate "сахара" column.
+ *
+ * The blocker has been removed rather than waived. src/lib/science/sugars.ts
+ * and ingredient-sugar-profiles.ts add a speciation layer that resolves each
+ * ingredient's sugar into named species with real molar masses, so Norrish's
+ * equation can be instantiated on actual numbers. The model still refuses when
+ * that resolution fails — it does not fall back to a guess.
+ *
+ * The remaining honesty guarantees are unchanged:
+ *   • a measured value still wins (this model sits below MeasuredAwModel);
+ *   • the result carries an uncertainty band, not a bare number;
+ *   • confidence degrades when speciation came from category defaults;
+ *   • validity-range violations are reported rather than hidden.
  */
-export const FutureScientificAwModel: WaterActivityModel = {
+export const CompositionScientificAwModel: WaterActivityModel = {
   id: 'scientific',
-  label: 'Научная модель (не подключена)',
+  label: 'Расчёт по составу (уравнение Норриша)',
   description:
-    'Слот для валидированной физико-химической модели a_w. Не реализован: во входных данных отсутствуют величины, которые требуются любой из известных формул.',
-  calculate() {
+    'Мультисолютное уравнение Норриша по водной фазе рецепта, с перекрёстной проверкой уравнениями Росса и Рауля. Учитывает вид сахаров, а не только их суммарную массу.',
+  calculate(input) {
+    const science = input.science;
+
+    if (!science || science.contributions.length === 0) {
+      return {
+        available: false,
+        value: null,
+        source: 'none',
+        modelId: 'scientific',
+        modelLabel: CompositionScientificAwModel.label,
+        reason:
+          'Состав водной фазы не подготовлен: расчёт вызван без данных о видах сахаров.',
+        missingData: [
+          'Разложение сахаров по видам (сахароза, глюкоза, фруктоза, лактоза, сорбит, сухие вещества глюкозного сиропа)',
+        ],
+      };
+    }
+
+    const detail = calculateCompositionWaterActivity({
+      contributions: science.contributions,
+      speciation: science.speciation,
+      temperatureCelsius: input.temperatureCelsius ?? undefined,
+    });
+
+    if (!detail.available || detail.waterActivity === null) {
+      return {
+        available: false,
+        value: null,
+        source: 'none',
+        modelId: 'scientific',
+        modelLabel: CompositionScientificAwModel.label,
+        reason: detail.reason,
+        missingData: detail.warnings,
+        detail,
+      };
+    }
+
     return {
-      available: false,
-      value: null,
-      source: 'none',
+      available: true,
+      value: detail.waterActivity,
+      source: 'model',
       modelId: 'scientific',
-      modelLabel: FutureScientificAwModel.label,
-      reason:
-        'Валидированная модель не подключена. Формула не выдумывается: расчёт a_w из одного процента воды физически некорректен.',
-      missingData: [
-        'Раздельный состав сахаров (сахароза, глюкоза, фруктоза, инвертный сироп, сорбит) — в базе есть только суммарная колонка «сахара»',
-        'Молярные массы растворённых веществ для расчёта мольной доли',
-        'Содержание солей (NaCl) — отдельной колонки в базе нет',
-        'Разделение «прочих сухих» на растворимые и нерастворимые',
-        'Температура продукта при измерении',
-        'Валидация модели по измеренным a_w для этого класса изделий',
-      ],
+      modelLabel: CompositionScientificAwModel.label,
+      reason: detail.reason,
+      detail,
     };
   },
 };
@@ -191,7 +250,7 @@ export const FutureScientificAwModel: WaterActivityModel = {
 export const DEFAULT_AW_MODEL_CHAIN: readonly WaterActivityModel[] = [
   MeasuredAwModel,
   ReferenceAwModel,
-  FutureScientificAwModel,
+  CompositionScientificAwModel,
 ];
 
 export const ALL_AW_MODELS: readonly WaterActivityModel[] = DEFAULT_AW_MODEL_CHAIN;

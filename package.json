@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f app"
+    "docker:logs": "docker compose logs -f app",
+    "docs:formulas": "tsx scripts/generate-formula-inventory.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

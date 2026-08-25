@@ -10,6 +10,7 @@ import {
 } from '@/components/ui';
 import { WaterActivityChart } from '@/components/charts/water-activity-chart';
 import { SHELF_LIFE_REFERENCE_POINTS, buildRecommendations } from '@/lib/shelf-life';
+import { analyseReferencePoint } from '@/lib/science';
 
 export function ShelfLifeView() {
   const { recipe, calculation, waterActivity, shelfLife, patch, hydrated } = useRecipe();
@@ -181,6 +182,12 @@ export function ShelfLifeView() {
               <div className="grid gap-3 sm:grid-cols-3">
                 {SHELF_LIFE_REFERENCE_POINTS.map((point) => {
                   const isBasis = shelfLife.basis.some((b) => b.id === point.id);
+                  // Spec §20: can these observations be explained physically?
+                  // Computed by the engine, not hard-coded here (spec §55).
+                  const physics = analyseReferencePoint(
+                    point.waterPercentage,
+                    point.sugarPercentageMin,
+                  );
                   return (
                     <div
                       key={point.id}
@@ -206,6 +213,21 @@ export function ShelfLifeView() {
                         ≈ {formatDays(point.shelfLifeDaysMin, point.shelfLifeDaysMax)}
                         <span className="ml-1 text-sm font-normal">дней</span>
                       </p>
+                      <dl className="mt-3 space-y-0.5 border-t border-[var(--border-subtle)] pt-2.5 text-[11px]">
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-muted">Водная фаза</dt>
+                          <dd className="tabular">
+                            {physics.waterPhaseSolidsPercent.toFixed(1)} %
+                            {physics.aboveBrixThreshold ? ' ✓' : ''}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-muted">Расчётная a_w</dt>
+                          <dd className="tabular font-medium">
+                            {physics.waterActivity.toFixed(3)}
+                          </dd>
+                        </div>
+                      </dl>
                       {point.notes ? (
                         <p className="text-muted mt-2 text-[11px]">{point.notes}</p>
                       ) : null}
@@ -217,6 +239,20 @@ export function ShelfLifeView() {
                     </div>
                   );
                 })}
+              </div>
+
+              <div className="mt-4">
+                <Notice tone="accent" title="Эти наблюдения объяснимы физически">
+                  Контрольные точки не случайны: чем концентрированнее водная фаза, тем ниже
+                  активность воды и тем дольше срок. Зависимость монотонна, а порог 65 °Brix из
+                  рецензируемого обзора по ганашу приходится ровно между первой и второй точками.
+                  <br />
+                  <br />
+                  <strong>Чего это не означает:</strong> формулы «a_w → дни» по-прежнему не
+                  существует. Для неё нужны данные по многим рецептурам, температурам и типам
+                  упаковки. Расчётная a_w здесь получена в допущении, что все сахара — сахароза
+                  (контрольные точки не сообщают их вид), поэтому это верхняя оценка.
+                </Notice>
               </div>
             </CardContent>
           </Card>

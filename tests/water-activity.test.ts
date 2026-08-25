@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { classifyWaterActivity } from '@/lib/water-activity/classify';
 import {
-  FutureScientificAwModel,
+  CompositionScientificAwModel,
   MeasuredAwModel,
   ReferenceAwModel,
   REFERENCE_AW_MEASUREMENTS,
@@ -134,8 +134,8 @@ describe('a_w models never invent a value (spec §8, §28)', () => {
     expect(result.missingData?.length).toBeGreaterThan(0);
   });
 
-  it('FutureScientificAwModel computes nothing and lists what it would need', () => {
-    const result = FutureScientificAwModel.calculate(emptyInput);
+  it('the composition model refuses when sugar speciation was not supplied', () => {
+    const result = CompositionScientificAwModel.calculate(emptyInput);
     expect(result.available).toBe(false);
     expect(result.value).toBeNull();
     expect(result.missingData?.join(' ')).toContain('сахаров');
@@ -158,26 +158,90 @@ describe('a_w models never invent a value (spec §8, §28)', () => {
   });
 });
 
-describe('a_w is never derived from water percentage (spec §8)', () => {
-  it('a 17.5 % water recipe does not yield a_w = 0.825 or any other number', () => {
-    const puree = makeIngredient('Пюре', { sugarPercentage: 35, waterPercentage: 17.5 });
+describe('a_w is never derived from water percentage alone (spec §8)', () => {
+  it('water % and a_w stay distinct quantities: 17.5 % water is not a_w = 0.825', () => {
+    const puree = makeIngredient('Пюре', {
+      category: 'fruit',
+      sugarPercentage: 35,
+      waterPercentage: 17.5,
+    });
     const calc = calculateRecipe({ items: [item(puree, 1000)] });
     expect(calc.percentages.waterPercentage).toBeCloseTo(17.5, 10);
 
     const aw = calculateWaterActivity(calc);
-    expect(aw.result.available).toBe(false);
-    expect(aw.result.value).toBeNull();
-    expect(aw.classification).toBeNull();
+    // The model now computes — but from the AQUEOUS PHASE, not from water %.
+    expect(aw.result.available).toBe(true);
+    expect(aw.result.source).toBe('model');
+    // Whatever it returns, it must not be the water fraction dressed up as a_w.
+    expect(aw.result.value).not.toBeCloseTo(0.175, 3);
+    expect(aw.result.value).not.toBeCloseTo(0.825, 3);
+    // And it must carry an uncertainty band rather than a bare number (§33).
+    expect(aw.result.detail?.low).toBeLessThan(aw.result.value as number);
+    expect(aw.result.detail?.high).toBeGreaterThan(aw.result.value as number);
   });
 
-  it('two recipes with identical water but different composition both return "no data"', () => {
-    const a = calculateRecipe({
-      items: [item(makeIngredient('A', { sugarPercentage: 50, waterPercentage: 20 }), 500)],
+  it('identical water % with different composition gives different a_w', () => {
+    // Same 20 % water. One recipe's dry matter is sugar, the other's is fat.
+    // Under a water-percentage model these would be identical; physically they
+    // are not remotely, and the model must show that.
+    const sugary = calculateRecipe({
+      items: [
+        item(makeIngredient('Сахароза', { category: 'sugar', sugarPercentage: 80, waterPercentage: 20 }), 500),
+      ],
     });
-    const b = calculateRecipe({
-      items: [item(makeIngredient('B', { fatPercentage: 50, waterPercentage: 20 }), 500)],
+    const fatty = calculateRecipe({
+      items: [
+        item(makeIngredient('Жир', { category: 'fat', fatPercentage: 80, waterPercentage: 20 }), 500),
+      ],
     });
-    expect(calculateWaterActivity(a).result.value).toBeNull();
-    expect(calculateWaterActivity(b).result.value).toBeNull();
+
+    const awSugary = calculateWaterActivity(sugary).result.value;
+    const awFatty = calculateWaterActivity(fatty).result.value;
+
+    expect(awSugary).not.toBeNull();
+    expect(awFatty).not.toBeNull();
+    // Fat dissolves nothing, so its water phase is pure water: a_w ≈ 1.
+    expect(awFatty as number).toBeCloseTo(1, 3);
+    // Sugar depresses a_w substantially.
+    expect(awSugary as number).toBeLessThan(0.95);
+    expect(Math.abs((awSugary as number) - (awFatty as number))).toBeGreaterThan(0.05);
+  });
+
+  it('identical sugar MASS with different sugar SPECIES gives different a_w (spec §11)', () => {
+    // The central claim of spec §11, as an executable assertion.
+    const build = (name: string, category: 'sugar') =>
+      calculateRecipe({
+        items: [
+          item(makeIngredient(name, { category, sugarPercentage: 66.7, waterPercentage: 33.3 }), 300),
+        ],
+      });
+
+    const sucrose = calculateWaterActivity(build('sugar sucrose', 'sugar')).result.value;
+    const invert = calculateWaterActivity(build('sugar inverted', 'sugar')).result.value;
+    const syrup40 = calculateWaterActivity(build('sugar glucose 40DE', 'sugar')).result.value;
+
+    for (const v of [sucrose, invert, syrup40]) expect(v).not.toBeNull();
+
+    // Invert sugar has ~half the molar mass of sucrose, so it puts far more
+    // particles into the water phase and depresses a_w more, despite a lower K.
+    expect(invert as number).toBeLessThan(sucrose as number);
+    // DE 40 syrup has a HIGHER molar mass than sucrose (~450 vs 342 g/mol),
+    // so per gram it depresses a_w least of the three.
+    expect(syrup40 as number).toBeGreaterThan(sucrose as number);
+  });
+
+  it('a measured value still overrides the computed one (spec §51)', () => {
+    const calc = calculateRecipe({
+      items: [
+        item(makeIngredient('Шоколад', { category: 'chocolate', sugarPercentage: 40, waterPercentage: 20, fatPercentage: 40 }), 500),
+      ],
+    });
+    const computed = calculateWaterActivity(calc);
+    const measured = calculateWaterActivity(calc, { measuredValue: 0.78 });
+
+    expect(computed.result.source).toBe('model');
+    expect(measured.result.source).toBe('measured');
+    expect(measured.result.value).toBe(0.78);
+    expect(measured.result.value).not.toBe(computed.result.value);
   });
 });
